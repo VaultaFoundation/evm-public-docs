@@ -22,7 +22,7 @@ cleos push action eosio.evm setversion '[1]' -s -d -j -x 3600 > evm_setversion.j
 
 ```
 
-### Step 2b: Step 2a: Update evm runtime contract:
+### Step 2b: Update evm runtime contract only
 ```
 cleos set contract eosio.evm ./ evm_runtime.wasm evm_runtime.abi -s -d -j -x 3600 > evm_setcode.json
 
