@@ -1,4 +1,6 @@
-The EVM Trustless Bridge contract provides the trustless bridging solutions between native Antelope blockchain and EVM layer 2 on Antelope blockchain.
+<h1>Vaulta EVM Trustless Bridge</h1>
+
+The Vaulta EVM Trustless Bridge contract provides the trustless bridging solutions between native Antelope blockchain and EVM layer 2 on Vaulta and other Antelope blockchains.
 
 **support the following types of tokens:**
 - Type 1: Tokens that originated from native Antelope blockchain (such as USDT in native contract tethertether)
@@ -58,7 +60,43 @@ token            | (holds native tokens)|              | to make internal evm tx
 ```
 
 
-**Deployment steps:**
+
+<h1>Building steps:</h1>
+
+
+- Build Vaulta EVM runtime contract:
+
+Follow the instructions in https://github.com/VaultaFoundation/evm-contract to compile the EVM runtime contracts. You should get the following files:
+```
+evm_runtime.wasm
+evm_runtime.abi
+```
+
+- Build the Trustless Bridge contract:
+
+Follow the instructions in https://github.com/VaultaFoundation/evm-bridge-contracts to compile the Trustless Bridge contracts, You should get the following files:
+```
+./build/antelope_contracts/contracts/erc20/erc20.wasm
+./build/antelope_contracts/contracts/erc20/erc20.abi
+```
+
+
+<h1>Deployment steps:</h1>
+
+Prerequisites:
+
+- Before setting up the Trustless Bridge, we need to deploy and initialize the EVM runtime contract in Vaulta or other Antelope blockchains:
+```
+./cleos set code eosio.evm EVM_PATH_to_evm_runtime.wasm
+./cleos set abi eosio.evm EVM_PATH_to_evm_runtime.abi
+
+./cleos push action eosio.evm init "{\"chainid\":15555,\"fee_params\":{\"gas_price\":150000000000,\"miner_cut\":10000,\"ingress_bridge_fee\":\"0.0100 A
+\"},\"token_contract\":\"core.vaulta\"}" -p eosio.evm
+
+```
+see https://github.com/VaultaFoundation/evm-contract/blob/main/docs/local_testnet_deployment_plan.md and https://github.com/VaultaFoundation/evm-contract/blob/main/docs/public_testnet_deployment_plan.md for more details.
+
+
 
 Initial setup:
 
@@ -67,17 +105,17 @@ Initial setup:
 cleos set code eosio.erc2o erc20.wasm 
 cleos set abi eosio.erc2o erc20.abi
 cleos set account permission eosio.erc2o active --add-code
-cleos transfer userA eosio.evm "100.0000 EOS" "eosio.erc2o"
+cleos transfer userA eosio.evm "100.0000 A" "eosio.erc2o"
 ```
 
 - Initialize the erc bridge (we use eosio.evm as evm runtime contract account in this example):
 ```
-cleos -u push action eosio.erc2o init "{\"evm_account\":\"eosio.evm\",\"gas_token_symbol\":\"4,EOS\",\"gaslimit\":500000,\"init_gaslimit\":10000000}" -p eosio.erc2o
+cleos -u push action eosio.erc2o init "{\"evm_account\":\"eosio.evm\",\"gas_token_symbol\":\"4,A\",\"gaslimit\":500000,\"init_gaslimit\":10000000}" -p eosio.erc2o
 ```
 
 - Call bridgereg action of evm runtime contract:
 ```
-cleos push action eosio.evm bridgereg '["eosio.erc2o","eosio.erc2o","0.0100 EOS"]' -p eosio.erc2o -p eosio.evm@owner
+cleos push action eosio.evm bridgereg '["eosio.erc2o","eosio.erc2o","0.0100 A"]' -p eosio.erc2o -p eosio.evm@owner
 ```
 
 - The trustless bridge use the proxy pattern in EVM side. So we need to deploy the implementation contract for Type 1 token.
@@ -93,7 +131,7 @@ cleos push action eosio.erc2o upgdevm2nat '[]' -p eosio.erc2o
 
 Register Trustless Bridge for Type1 Token example (native token USDT):
 ```
-./cleos push action eosio.erc2o regtoken '["tethertether","My USDT Token (EOS)","USDT","0.0100 USDT","0.0100 EOS",6]' -p eosio.erc2o
+./cleos push action eosio.erc2o regtoken '["tethertether","My USDT Token","USDT","0.0100 USDT","0.0100 A",6]' -p eosio.erc2o
 ```
 
 Register Trustless Bridge for Type2 Token example (ERC20 token 0x4d9dbb271ee2962f8becd3b27e3ebcd384ad3171):
@@ -108,7 +146,7 @@ create mirrored token (for example GOLD) in native side and issue the mirrored m
 
 call regevm2nat action to register type2 bridge:
 ```
-./cleos push action eosio.erc2o regevm2nat '["0x4d9dbb271ee2962f8becd3b27e3ebcd384ad3171","goldgoldgold","0.1000 GOLD","0.0100 EOS",18,""]' -p eosio.erc2o
+./cleos push action eosio.erc2o regevm2nat '["0x4d9dbb271ee2962f8becd3b27e3ebcd384ad3171","goldgoldgold","0.1000 GOLD","0.0100 A",18,""]' -p eosio.erc2o
 ```
 
 After token registration you need to check the generated ERC-20 token address (for Type1) and the generated portal address (for Type2). This can be done by querying the tables via cleos command:
@@ -164,3 +202,24 @@ with the parameters set to:
 - memo: empty or any string as "memo" field in native transfer
 
 ```
+
+
+<h1>Maintenance actions:</h1>
+
+- Action unregtoken(eosio::name token_contract, eosio::symbol_code token_symbol_code)
+
+  action to unregister a registered type 1 or type 2 token. This is used when there is something wrong for the regsitered token. for example:
+  ```
+  cleos push action eosio.erc2o unregtoken "[\"tethertether",\"USDT"]" -p eosio.erc2o
+  ```
+  It will not touch any balances on either side.
+  
+
+- Action withdrawfee(eosio::name token_contract, eosio::asset quantity, eosio::name to, std::string memo)
+
+  action to withdraw collected ingress bridge fee.
+  
+- Action setgaslimit(std::optional<uint64_t> gaslimit, std::optional<uint64_t> init_gaslimit)
+
+  action to set gas limit for bridging transaction & token contract deployment trasnaction in the EVM side.
+  
