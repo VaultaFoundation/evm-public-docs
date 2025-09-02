@@ -371,7 +371,7 @@ In order to monitoring fund withdrawal, exchanges need to consider:
 For example:
 - 1. At 9:00:00AM UTC, the upstream signed the ETH transaction with ETH compatible private key and then call eth_sendRawTransaction
 - 2. The evm-miner packages the EVM transaction into Vaulta transaction and signed it with Vaulta private key, and push to native Vaulta network.
-- 3. If `EXPIRE_SEC` is set to 60, the Vaulta transaction will expire at 9:01:00AM. So we need to wait until the result of `./cleos get info` shows that the last_irreversible_block_time >= 9:01:00AM. At most cases, the Vaulta Network will have around 3 minute finality time, so we probably need to wait until 9:04:00AM.
+- 3. If `EXPIRE_SEC` is set to 60, the Vaulta transaction will expire at 9:01:00AM. So we need to wait until the result of `cleos get info` shows that the last_irreversible_block_time > 9:01:00AM. At most cases, thanks to Savanna consesus, the Vaulta Network will have just 1 second finality time, so we ususally need to wait until 9:01:02AM.
 - 4. Since all transactions up 9:01:00AM are irreversible, we scan each EVM block between 9:00:00AM and 9:01:01AM (1 sec max timestamp difference between Vaulta and Vaulta-EVM blocks) to confirm whether the transaction is included in the EVM blockchain (so as the native Vaulta blockchain). We can confirm the withdrawal is successfull if we find the transaction in this range. Otherwise, the transaction is already expired and can not be included in the blockchain.
 - 5. Alternative to 4, instead of scanning all blocks in the time range, we can get the nonce number of the EVM account to confirm if the withdrawal is successful. But this method only works if there is only one withdrawal pending under that EVM account.
 
