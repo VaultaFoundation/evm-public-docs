@@ -1,6 +1,6 @@
-# Deploy and Support EOS EVM Network for Centralized Exchanges and EOS-EVM Node operators
+# Deploy and Support Vaulta EVM Network for Centralized Exchanges and Vaulta EVM Node operators
 
-This document will describes the minimum requirements to deploy and support EOS EVM Network for Centralized Cryptocurrency Exchanges.
+This document will describes the minimum requirements to deploy and support Vaulta EVM Network for Centralized Cryptocurrency Exchanges.
 
 <!-- contents box begin -->
 <table>
@@ -16,11 +16,11 @@ This document will describes the minimum requirements to deploy and support EOS 
 
 1. [Minimum Architecture](#MA)
 2. [Building necessary components](#BNC)
-3. [Running the EOS (spring) nodes with state_history_plugin](#REN)
-4. [Running the eos-evm-node & eos-evm-rpc](#REE)
-5. [Backup & Recovery of spring & eos-evm-node](#BR)
-6. [Running the eos-evm-miner service](#RMS)
-7. [[Exchanges Only]: Calculate the irreversible block number from EOS chain to EOS-EVM Chain](#CRB)
+3. [Running the Vaulta (spring) nodes with state_history_plugin](#REN)
+4. [Running the evm-node & evm-rpc](#REE)
+5. [Backup & Recovery of spring & evm-node](#BR)
+6. [Running the evm-miner service](#RMS)
+7. [[Exchanges Only]: Calculate the irreversible block number from Vaulta chain to Vaulta-EVM Chain](#CRB)
 8. [[EVM-Node operators Only]: Setting up the read-write proxy and explorer](#RWP)
 9. [Replay the EVM chain for major version upgrades](#REPLAY)
 10. [Known Limitations](#KL)
@@ -34,71 +34,80 @@ This document will describes the minimum requirements to deploy and support EOS 
 
 <a name="MA"></a>
 ## Minimum Architecture 
-This is the minimum setup to run a EOS EVM service. It does not contain the high availability setup. Exchanges can duplicate the real-time service part for high availability purpose if necessary. 
+This is the minimum setup to run a Vaulta EVM service. It does not contain the high availability setup. Exchanges can duplicate the real-time service part for high availability purpose if necessary. 
 ```
 Real-time service:
-    +--VM1 (spring node) ----------+     +--VM2 (EOS-EVM node)--------+
-    | EOS main node process with   | <-- | eos-evm-node & eos-evm-rpc | <-- eth compatible read requests 
-    | state_history_plugin enabled |     +----------------------------+     (e.g. eth_getBlockByNumber, eth_call ...)
+    +--VM1 (Vaulta spring node) ---+     +--VM2 (Vaulta-EVM node)-+
+    | main node process with       | <-- | evm-node & evm-rpc     | <-- eth compatible read requests 
+    | state_history_plugin enabled |     +------------------------+     (e.g. eth_getBlockByNumber, eth_call ...)
     +------------------------------+               \
-                   ^                                \    +--- VM2 (EOS-EVM node)----+
+                   ^                                \    +-- VM2 (Vaulta-EVM node)--+
                    |                                 <-- | proxy to separate read & |
                    |                                /    | write requests (optional)| 
                    |                               /     +--------------------------+
                    |                              /
-                   |                           +--VM2 (EOS-EVM node)-----+
-                   \-- push EOS transactions --| eos-evm-miner (wrapper) | <-- eth_gasPrice 
-                                               +-------------------------+     eth_sendRawTransaction
+                   |                            +--VM2 (Vaulta-EVM node)--+
+                   \- push Vaulta transactions -| evm-miner (wrapper)     | <-- eth_gasPrice 
+                                                +-------------------------+     eth_sendRawTransaction
 
 Periodic Backup service: 
-    +--VM3 (Backup VM) ------------------------+        +-- VM3 (Backup VM) ---------+
-    | spring node running in irreversible mode | <----- | eos-evm-node & eos-evm-rpc | 
-    | with state_history_plugin enabled        |        +----------------------------+
-    +------------------------------------------+         
+    +--VM3 (Backup VM) ------------------------+        +-- VM3 (Backup VM) -+
+    | spring node running in irreversible mode | <----- | evm-node & evm-rpc | 
+    | with state_history_plugin enabled        |        +--------------------+
+    +------------------------------------------+
 ```
-spring node stands for the EOS (Level 1) blockchain, and eos-evm-node stands for the EOS-EVM (Level 2) blockchain. eos-evm-rpc talk to eos-evm-node 
- in the same VM and it is used for providing read-only ETH APIs (such as eth_getBlockByNumber, eth_call, eth_blockNumber, ... ) which is compatible with standard ETH API. For ETH write requests eth_sendRawTransaction, and eth_gasPrice, they will be served via eos-evm-miner instead of eos-evm-rpc.
+spring node stands for the Vaulta (Level 1) blockchain, and evm-node stands for the Vaulta-EVM (Level 2) blockchain. evm-rpc talk to evm-node 
+ in the same VM and it is used for providing read-only ETH APIs (such as eth_getBlockByNumber, eth_call, eth_blockNumber, ... ) which is compatible with standard ETH API. For ETH write requests eth_sendRawTransaction, and eth_gasPrice, they will be served via evm-miner instead of evm-rpc.
  
-- VM1: this VM will run EOS spring node with state_history_plugin enabled. A high end CPU with good single threaded performance is recommended. RAM: 128GB+, SSD 2TB+ (for storing block logs & state history from the EVM genesis time (2023-04-05T02:18:09 UTC) up to now)
-- VM2: this VM will run eos-evm-node, eos-evm-rpc & eos-evm-miner. Recommend to use 8 vCPU, 32GB+ RAM, and 1TB+ SSD
-- VM3: this VM will run spring (in irrversible mode), eos-evm-node & eos-evm-rpc and mainly for backup purpose. Recommend to use 8 vCPU, 128GB+ RAM, 3TB+ SSD (backup files can be large).
+- VM1: this VM will run Vaulta spring node with state_history_plugin enabled. A high end CPU with good single threaded performance is recommended. RAM: 128GB+, SSD 2TB+ (for storing block logs & state history from the EVM genesis time (2023-04-05T02:18:09 UTC) up to now)
+- VM2: this VM will run evm-node, evm-rpc & evm-miner. Recommend to use 8 vCPU, 32GB+ RAM, and 1TB+ SSD
+- VM3: this VM will run spring (in irrversible mode), evm-node & evm-rpc and mainly for backup purpose. Recommend to use 8 vCPU, 128GB+ RAM, 3TB+ SSD (backup files can be large).
 
 
 <a name="BNC"></a>
 ## Building necessary components:
-OS: Recommend to use ubuntu 22.04
+OS: Recommend to use ubuntu 22.04 or later versions
 
-- EOS (spring) Node: the main process for EOS chain
+- Vaulta (spring) Node: the main process for Vaulta chain
 please refer to https://github.com/AntelopeIO/spring
 The latest pre-built stable version can be downloaded from https://github.com/AntelopeIO/spring/releases
 
 
-- eos-evm-node, eos-evm-rpc: the main process for EOS-EVM chain
-Please build the latest stable version in https://github.com/eosnetworkfoundation/eos-evm-node
+- Vaulta evm-node & evm-rpc: the main process for Vaulta-EVM chain
+Please build the latest stable version in https://github.com/VaultaFoundation/evm-node
 
 for example, the latest stable version is v1.0.1 up to the time of writing this doc.
 ```
-git clone https://github.com/eosnetworkfoundation/eos-evm-node.git
-cd eos-evm-node
-git checkout v1.0.1
+git clone https://github.com/VaultaFoundation/evm-node.git
+cd evm-node
+git checkout release/2.0
 git submodule update --init --recursive
 mkdir build; cd build;
 cmake .. && make -j8
 ```
 
-- Eos-evm-miner: please refer to https://github.com/eosnetworkfoundation/eos-evm-miner
+- Vaulta Evm Miner: please refer to https://github.com/VaultaFoundation/evm-miner
+```
+git clone https://github.com/VaultaFoundation/evm-miner.git
+cd evm-miner
+yarn
+```
+Copy the .env.example file to .env and fill in the environment variables.
+```
+yarn start
+```
 
-- Proxy to separate read requests & write requests: please refer to https://github.com/eosnetworkfoundation/eos-evm-node/tree/main/peripherals/proxy
+- Proxy to separate read requests & write requests: please refer to https://github.com/VaultaFoundation/evm-node/tree/main/peripherals/proxy
 
 
 
 <a name="REN"></a>
-## Running the EOS (spring) nodes with state_history_plugin (with trace-history=true)
+## Running the Vaulta (spring) nodes with state_history_plugin (with trace-history=true)
 
 - For the first time: You need a snapshot file whose timestamp is before the EVM genesis timestamp 2023-04-05T02:18:09 UTC.
 - The block log and state history logs need to be replayed from the snapshot time and need to be saved together in the periodic backup.
-- You need to keep the block logs, state-history logs starting from the snapshot point. This is because eos-evm-node may ask for old blocks for replaying the EVM chain. 
-- You can download the snapshot from any public EOS snapshot service providers (such as https://snapshots.eosnation.io/), or use your own snapshot.
+- You need to keep the block logs, state-history logs starting from the snapshot point. This is because evm-node may ask for old blocks for replaying the EVM chain. 
+- You can download the snapshot from any public Vaulta snapshot service providers (such as https://snapshots.eosnation.io/), or use your own snapshot.
 - Supported version: spring 1.0 or newer versions
   
 example data-dir/config.ini
@@ -189,21 +198,50 @@ curl http://127.0.0.1:8888/v1/db_size/get 2>/dev/null | jq
 
 
 <a name="REE"></a>
-## Running the eos-evm-node & eos-evm-rpc
+## Running the evm-node & evm-rpc
 
-- Copy the mainnet EOS-EVM genesis from https://github.com/eosnetworkfoundation/evm-public-docs/blob/main/mainnet-genesis.json
-- run the eos-evm-node
+- Copy the mainnet Vaulta-EVM genesis from https://github.com/VaultaFoundation/evm-public-docs/blob/main/mainnet-genesis.json
+```
+{
+    "alloc": {
+        "0000000000000000000000000000000000000000": {
+            "balance": "0x0000000000000000000000000000000000000000000000000000000000000000" 
+        }
+    },
+    "coinbase": "0x0000000000000000000000000000000000000000",
+    "config": {
+        "chainId": 17777,
+        "homesteadBlock": 0,
+        "eip150Block": 0,
+        "eip155Block": 0,
+        "byzantiumBlock": 0,
+        "constantinopleBlock": 0,
+        "petersburgBlock": 0,
+        "istanbulBlock": 0,
+        "trust": {}
+    },
+    "difficulty": "0x01",
+    "extraData": "TrustEVM",
+    "gasLimit": "0x7ffffffffff",
+    "mixHash": "0x120eb7a4e6a75f1ae89e9da3bd979c263b14b8b2ccdf1892962cbad6bc650c93",
+    "nonce": "0x5530ea015b900000",
+    "timestamp": "0x642cda61"
+}
+```
+
+
+- run the evm-node
 ```
 mkdir ./chain-data
-./eos-evm-node --ship-endpoint=<NODEOS_IP_ADDRESS>:8999 --ship-core-account eosio.evm --chain-data ./chain-data --plugin block_conversion_plugin --plugin blockchain_plugin --nocolor 1  --verbosity=4 --genesis-json=./genesis.json
+./evm-node --ship-endpoint=<NODEOS_IP_ADDRESS>:8999 --ship-core-account eosio.evm --chain-data ./chain-data --plugin block_conversion_plugin --plugin blockchain_plugin --nocolor 1  --verbosity=4 --genesis-json=./genesis.json
 ```
-- run the eos-evm-rpc (must be in the same VM as eos-evm-node)
+- run the evm-rpc (must be in the same VM as evm-node)
 ```
-./eos-evm-rpc --api-spec=eth,debug,net,trace --http-port=0.0.0.0:8881 --eos-evm-node=127.0.0.1:8080 --chaindata=./chain-data
+./evm-rpc --api-spec=eth,debug,net,trace --http-port=0.0.0.0:8881 --evm-node=127.0.0.1:8080 --chaindata=./chain-data
 ```
 - The EVM state, logs will be stored in ./chain-data directory
 
-The eos-evm-rpc will talk to eos-evm-node and provide the eth compatible RPC services, for example, you can check the current block number of eos-evm-node via:
+The evm-rpc will talk to evm-node and provide the eth compatible RPC services, for example, you can check the current block number of evm-node via:
 ```
 curl --location --request POST '127.0.0.1:8881/' --header 'Content-Type: application/json' --data-raw '{"method":"eth_blockNumber","params":["0x1",false],"id":0}'
 ```
@@ -211,42 +249,42 @@ example output:
 ```
 {"id":0,"jsonrpc":"2.0","result":"0xa4e03"}
 ```
-- if either spring or eos-evm-node can't start, follow the recovery process in the next session.
+- if either spring or evm-node can't start, follow the recovery process in the next session.
 
 <a name="BR"></a>
-## Backup & Recovery of spring & eos-evm-node
+## Backup & Recovery of spring & evm-node
 - It is quite important for node operator to backup all the state periodically (for example, once per day).
-- backup must be done on the spring node running in irreversible mode. And because of such, all the blocks in eos-evm-node has been finialized and it will never has a fork.
+- backup must be done on the spring node running in irreversible mode. And because of such, all the blocks in evm-node has been finialized and it will never has a fork.
 - create the nodeos (spring) snapshot:
   ```
   curl http://127.0.0.1:8888/v1/producer/create_snapshot
   ```
 - gracefull kill all processes:
 ```
-pkill eos-evm-node
+pkill evm-node
 sleep 2.0
-pkill eos-evm-rpc
+pkill evm-rpc
 sleep 2.0
 pkill nodeos
 ```
-- backup spring's data-dir folder and eos-evm-node's chain-data
+- backup spring's data-dir folder and evm-node's chain-data
 - restart nodeos wait until the nodeos sync-up (use ```./cleos get info``` to verify)
-- restart eos-evm-node & eos-evm-rpc
+- restart evm-node & evm-rpc
 
 Recover process:
 - for spring recovery, please restore the data-dir folder of the last backup and use the spring's snapshot
-- for eos-evm-node recovery, please restore the chain-data folder of the last backup.
+- for evm-node recovery, please restore the chain-data folder of the last backup.
 
 
 
 <a name="RMS"></a>
-## Running the eos-evm-miner service 
-The miner service will help to package the EVM transaction into EOS transaction and set to the EOS network. It will provide the following 2 eth API:
-- eth_gasPrice: retrieve the currect gas price from EOS Network
-- eth_sendRawTransaction: package the ETH transaction into EOS transaction and push into the EOS Network.
-clone the https://github.com/eosnetworkfoundation/eos-evm-miner repo
+## Running the evm-miner service 
+The miner service will help to package the EVM transaction into Vaulta transaction and set to the Vaulta network. It will provide the following 2 eth API:
+- eth_gasPrice: retrieve the currect gas price from Vaulta Network
+- eth_sendRawTransaction: package the ETH transaction into Vaulta transaction and push into the Vaulta Network.
+clone the https://github.com/VaultaFoundation/evm-miner repo
 
-- create your miner account (for example: a123) on EOS Network
+- create your miner account (for example: a123) on Vaulta Network
 - open account balance on EVM side:
   ```
   ./cleos push action eosio.evm open '{"owner":"a123"}' -p a123
@@ -255,7 +293,7 @@ clone the https://github.com/eosnetworkfoundation/eos-evm-miner repo
 
 - prepare the .env file with the correct information
 ```
-PRIVATE_KEY=5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3
+PRIVATE_KEY=5KQwrPxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 MINER_ACCOUNT=a123
 RPC_ENDPOINTS=http://127.0.0.1:8888|http://192.168.1.1:8888
 PORT=18888
@@ -277,9 +315,9 @@ curl http://127.0.0.1:18888 -X POST -H "Accept: application/json" -H "Content-Ty
 
 
 <a name="CRB"></a>
-## [For centralized exchanges] Calculate the irreversible block number from EOS (L1) chain to EOS-EVM (L2) Chain
-For centralized exchanges it is important to know up to which block number the chain is irreversible. This is the way to calculate the irreversible time of EOS-EVM:
-- ensure the spring node & eos-evm-node are fully sync-up.
+## [For centralized exchanges] Calculate the irreversible block number from Vaulta (L1) chain to Vaulta-EVM (L2) Chain
+For centralized exchanges it is important to know up to which block number the chain is irreversible. The `mixHash` field in an EVM(L2) block is associated with the block ID in the Vaulta(L1) chain. Here is the way to calculate the irreversible time of Vaulta-EVM:
+- ensure the spring node & evm-node are fully sync-up.
 - do a get_info request to spring node.
 ```
 {
@@ -302,8 +340,8 @@ curl --location --request POST '127.0.0.1:8881/' --header 'Content-Type: applica
 {"id":0,"jsonrpc":"2.0","result":{"difficulty":"0x1","extraData":"0x","gasLimit":"0x7ffffffffff","gasUsed":"0x0","hash":"0x563fe6290cf38d55e4c4d2c86886032a1734ad1e467b7ce06ff52f12ee378b0d","logsBloom":"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","miner":"0xbbbbbbbbbbbbbbbbbbbbbbbb5530ea015b900000","mixHash":"0x12df121840088703a9fe2f305eefe25dbe97bc57f7e127d922ffa8d005aceea6","nonce":"0x0000000000000000","number":"0x6832ca","parentHash":"0xafebdcf129bd506cee25892b2f20703e5ae98bd95557a04b91ac0f56a3433824","receiptsRoot":"0x0000000000000000000000000000000000000000000000000000000000000000","sha3Uncles":"0x0000000000000000000000000000000000000000000000000000000000000000","size":"0x202","stateRoot":"0x0000000000000000000000000000000000000000000000000000000000000000","timestamp":"0x64950d2b","totalDifficulty":"0x6832cb","transactions":[],"transactionsRoot":"0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421","uncles":[]}}
 `
 
-- please ensure the evm block has a non-empty "mixHash" field, which is important because it corresponds to the block ID of the EOS (L1) chain. If not, then go for the earlier EVM block until the block with mixHash is found, or simply wait sometime and do it again from the beginning.
-- take the first 4 bytes of mixHash. In the above example it is 0x12df1218, convert to decimal number 316609048, which is the block number of the EOS (L1) chain.
+- please ensure the evm block has a non-empty "mixHash" field, which is important because it corresponds to the block ID of the Vaulta (L1) chain. If not, then go for the earlier EVM block until the block with mixHash is found, or simply wait sometime and do it again from the beginning.
+- take the first 4 bytes of mixHash. In the above example it is 0x12df1218, convert to decimal number 316609048, which is the block number of the Vaulta (L1) chain.
 - send a "get_block" request to nodeos and make sure the mixHash is equal to the block id:
 ```
 ./cleos get block 316609048
@@ -319,22 +357,22 @@ curl --location --request POST '127.0.0.1:8881/' --header 'Content-Type: applica
   "ref_block_prefix": 808451753
 }
 ```
-- If yes (which is in the above example), it means that the EVM chain is irreversible up to block 6828746 (where EOS block is 316609048 at 2023-06-23T03:10:34.500). If not, wait sometime until the EVM chain sync up and check again.
+- If yes (which is in the above example), it means that the EVM chain is irreversible up to block 6828746 (where Vaulta block is 316609048 at 2023-06-23T03:10:34.500). If not, wait sometime until the EVM chain sync up and check again.
 
 ### Monitor funds deposits into exchanges:
-- For EOS tokens on EOS-EVM: Since this is the native token, similar to other ETH compatible networks, exchanges can use similar way to query EVM blocks (such as using eth_getBlockByNumber) up to the last irreversible EVM blocks as explained above. Or query the account balance using eth_getBalance if needed.
-- For ERC20 tokens on EOS-EVM: Also similar to other ETH networks, exchanges can execute the ETH view action (eth_call) to extract the balance of any EVM account, or monitor each EVM blocks.
+- For Vaulta tokens on Vaulta-EVM: Since this is the native token, similar to other ETH compatible networks, exchanges can use similar way to query EVM blocks (such as using eth_getBlockByNumber) up to the last irreversible EVM blocks as explained above. Or query the account balance using eth_getBalance if needed.
+- For ERC20 tokens on Vaulta-EVM: Also similar to other ETH networks, exchanges can execute the ETH view action (eth_call) to extract the balance of any EVM account, or monitor each EVM blocks.
  
 ### Confirm if a fund withdrawal is successful or fail:
 In order to monitoring fund withdrawal, exchanges need to consider:
-- The ```EXPIRE_SEC``` value set in the eos-evm-miner. This value will control how long will the EOS trasaction expires in such a way that it will never be included in the blockchain after expiration.
+- The ```EXPIRE_SEC``` value set in the evm-miner. This value will control how long will the Vaulta trasaction expires in such a way that it will never be included in the blockchain after expiration.
 - The irreversible EVM block number.
 
 For example:
 - 1. At 9:00:00AM UTC, the upstream signed the ETH transaction with ETH compatible private key and then call eth_sendRawTransaction
-- 2. The eos-evm-miner packages the EVM transaction into EOS transaction and signed it with EOS private key, and push to native EOS network.
-- 3. If `EXPIRE_SEC` is set to 60, the EOS transaction will expire at 9:01:00AM. So we need to wait until the result of `./cleos get info` shows that the last_irreversible_block_time >= 9:01:00AM. At most cases, the EOS Network will have around 3 minute finality time, so we probably need to wait until 9:04:00AM.
-- 4. Since all transactions up 9:01:00AM are irreversible, we scan each EVM block between 9:00:00AM and 9:01:01AM (1 sec max timestamp difference between EOS and EOS-EVM blocks) to confirm whether the transaction is included in the EVM blockchain (so as the native EOS blockchain). We can confirm the withdrawal is successfull if we find the transaction in this range. Otherwise, the transaction is already expired and can not be included in the blockchain.
+- 2. The evm-miner packages the EVM transaction into Vaulta transaction and signed it with Vaulta private key, and push to native Vaulta network.
+- 3. If `EXPIRE_SEC` is set to 60, the Vaulta transaction will expire at 9:01:00AM. So we need to wait until the result of `cleos get info` shows that the last_irreversible_block_time > 9:01:00AM. At most cases, thanks to Savanna consesus, the Vaulta Network will have just 1 second finality time, so we ususally need to wait until 9:01:02AM.
+- 4. Since all transactions up 9:01:00AM are irreversible, we scan each EVM block between 9:00:00AM and 9:01:01AM (1 sec max timestamp difference between Vaulta and Vaulta-EVM blocks) to confirm whether the transaction is included in the EVM blockchain (so as the native Vaulta blockchain). We can confirm the withdrawal is successfull if we find the transaction in this range. Otherwise, the transaction is already expired and can not be included in the blockchain.
 - 5. Alternative to 4, instead of scanning all blocks in the time range, we can get the nonce number of the EVM account to confirm if the withdrawal is successful. But this method only works if there is only one withdrawal pending under that EVM account.
 
 
@@ -342,14 +380,14 @@ For example:
 <a name="RWP"></a>
 ## [Optional] For EVM-Node operators Only: Setting up the read-write proxy and explorer
 
-Follow the build process in https://github.com/eosnetworkfoundation/eos-evm-node/tree/main/peripherals/proxy
+Follow the build process in https://github.com/VaultaFoundation/evm-node/tree/main/peripherals/proxy
 
-The proxy program will separate Ethereum's write requests (such as eth_sendRawTransaction,eth_gasPrice) from other requests (treated as read requests). The write requests should go to Transaction Wrapper (which wrap the ETH transaction into Antelope transaction and sign it and push to the Antelope blockchain). The read requests should go to eos-evm-rpc.
+The proxy program will separate Ethereum's write requests (such as eth_sendRawTransaction,eth_gasPrice) from other requests (treated as read requests). The write requests should go to Transaction Wrapper (which wrap the ETH transaction into Antelope transaction and sign it and push to the Antelope blockchain). The read requests should go to evm-rpc.
 
 In order to get it working, docker is required. To install docker in Linux, see https://docs.docker.com/engine/install/ubuntu/
 
 ```shell
-cd eos-evm-node/peripherals/proxy/
+cd evm-node/peripherals/proxy/
 ```
 
 - Edit the file `nginx.conf`, find the follow settings:
@@ -365,7 +403,7 @@ cd eos-evm-node/peripherals/proxy/
 ```
 
 - Change the IP and port of the write session to your Transaction Wrapper server endpoint.
-- Change the IP and port of the read session to your eos-evm-rpc server endpoint
+- Change the IP and port of the read session to your evm-rpc server endpoint
 - Build the docker image for the proxy program:
 
 ```shell
@@ -493,31 +531,31 @@ finally:
 
 
 ### Setup explorer:
-follow https://github.com/eosnetworkfoundation/eos-evm/blob/main/docs/local_testnet_deployment_plan.md to setup your own EOS-EVM Explorer
+Please refer to https://github.com/VaultaFoundation/evm-contract/blob/main/docs/local_testnet_deployment_plan.md & https://github.com/VaultaFoundation/blockscout to setup your own Vaulta-EVM Explorer
 
 
 
 <a name="REPLAY"></a>
 ## Replay the EVM chain for major version upgrades
-Sometime full EVM chain is required if there's a major version upgrade of eos-evm-node. This is the suggested replay process:
+Sometime full EVM chain is required if there's a major version upgrade of evm-node. This is the suggested replay process:
 - 1. Use the backup VM (in which spring node is running in irreversible mode so that it won't be any forks) for replaying
-- 2. Gracefully shutdown eos-evm-rpc & eos-evm-node, keep spring node running.
-- 3. Backup the eos-evm-node data folder (specified in --chain-data parameter).
+- 2. Gracefully shutdown evm-rpc & evm-node, keep spring node running.
+- 3. Backup the evm-node data folder (specified in --chain-data parameter).
 - 4. Delete everything in the --chain-data folder, but keep the folder itself
-- 5. Replace the eos-evm-node & eos-evm-rpc to the new version
-- 6. Start eos-evm-node & eos-evm-rpc again. Replay will be started automatically.
+- 5. Replace the evm-node & evm-rpc to the new version
+- 6. Start evm-node & evm-rpc again. Replay will be started automatically.
 - 7. Query the current replay process, normally replay will finished within hours:
 ```
 curl --location --request POST '127.0.0.1:8881/' --header 'Content-Type: application/json' --data-raw '{"method":"eth_blockNumber","params":["0x1",false],"id":0}'
 ```
-- 8. After replay finishes, gracefully shutdown eos-evm-rpc & eos-evm-node. Make the evm backup of data-dir folder
+- 8. After replay finishes, gracefully shutdown evm-rpc & evm-node. Make the evm backup of data-dir folder
 - 9. Apply the new binaries & the backup to other eos-evm node.
 
 
 <a name="KL"></a>
 ## Known Limitations
-- Eos-evm-node will gracefully stop if the state-history-plugin connection in spring node is dropped. Exchanges or node operators need to have auto-restart script to restart eos-evm-node (and choose the available spring end-point if high availability setup exist)
+- evm-node will gracefully stop if the state-history-plugin connection in spring node is dropped. Exchanges or node operators need to have auto-restart script to restart evm-node (and choose the available spring end-point if high availability setup exist)
 
-- In some rare case, eos-evm-node can not handle forks happened in Native EOS (L1) chain. Exchanges or node operators may need to run the recovery process.
+- In some rare case, evm-node can not handle forks happened in Native Vaulta (L1) chain. Exchanges or node operators may need to run the recovery process.
 
-- If eos-evm-node crashes, in some case it may not able to start due to database error. Exchanges or node operators may need to run the recovery process.
+- If evm-node crashes, in some case it may not able to start due to database error. Exchanges or node operators may need to run the recovery process.
