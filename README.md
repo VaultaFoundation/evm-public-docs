@@ -43,15 +43,15 @@ Please refer to [msig_contract_deployment/msig_evm_bootstrap.md](https://github.
 
 ## See Also
 More documentation can be found in the EVM repos.
-- [eos-evm-bridge-contracts](https://github.com/VaultaFoundation/evm-bridge-contracts) - trustless bridge smart contracts.
-- [eos-evm-contract](https://github.com/VaultaFoundation/evm-contract) - smart contract implementing the EVM on Vaulta.
-- [eos-evm-explorer](https://github.com/VaultaFoundation/blockscout) - web block explorer.
-- [eos-evm-faucet](https://github.com/VaultaFoundation/evm.faucet) - testnet faucet frontend.
-- [eos-evm-faucet-api](https://github.com/VaultaFoundation/evm.faucet-api) - testnet faucet backend.
-- [eos-evm-faucet-contract](https://github.com/VaultaFoundation/eosio.faucet) - testnet faucet contract.
-- [eos-evm-internal](https://github.com/VaultaFoundation/evm-internal) - internal-facing documentation of a [sensitive](https://github.com/VaultaFoundation/engineering/blob/main/standards/secrets.md) nature.
-- [eos-evm-miner](https://github.com/VaultaFoundation/evm-miner) - relay Vaulta EVM transactions for rewards.
-- [eos-evm-node](https://github.com/VaultaFoundation/evm-node) - blockchain client.
+- [evm-bridge-contracts](https://github.com/VaultaFoundation/evm-bridge-contracts) - trustless bridge smart contracts.
+- [evm-contract](https://github.com/VaultaFoundation/evm-contract) - smart contract implementing the EVM on Vaulta.
+- [evm-explorer](https://github.com/VaultaFoundation/blockscout) - web block explorer.
+- [evm-faucet](https://github.com/VaultaFoundation/evm.faucet) - testnet faucet frontend.
+- [evm-faucet-api](https://github.com/VaultaFoundation/evm.faucet-api) - testnet faucet backend.
+- [evm-faucet-contract](https://github.com/VaultaFoundation/eosio.faucet) - testnet faucet contract.
+- [evm-internal](https://github.com/VaultaFoundation/evm-internal) - internal-facing documentation of a [sensitive](https://github.com/VaultaFoundation/engineering/blob/main/standards/secrets.md) nature.
+- [evm-miner](https://github.com/VaultaFoundation/evm-miner) - relay Vaulta EVM transactions for rewards.
+- [evm-node](https://github.com/VaultaFoundation/evm-node) - blockchain client.
 
 ***
 > **_Legal Notice_**  
